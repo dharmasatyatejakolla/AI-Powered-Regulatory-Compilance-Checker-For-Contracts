@@ -159,6 +159,6 @@ def process_pdf_to_sheets(pdf_path, batch_size=3):
     worksheet.clear()
     worksheet.update(values=rows, range_name="A1")
 
-# Run
+#Run
 pdf = r"C:\Users\satya\OneDrive\AI_compliance_regulatory_checker\contracts\Law_Insider_americas-diamond-corp_exhibit-101-stock-purchase-agreement-stock-purchase-agreement-dated-as-of-february-11-2013-and-wi_Filed_01-03-2013_Contract.pdf"
 process_pdf_to_sheets(pdf, batch_size=3)
