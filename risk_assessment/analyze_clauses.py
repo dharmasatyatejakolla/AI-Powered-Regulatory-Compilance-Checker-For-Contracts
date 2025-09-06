@@ -23,7 +23,8 @@ def safe_json_parse(content, clauses, start_id):
             "Regulation": "Unknown",
             "Risk Level": "Unknown",
             "Risk Score": "0%",
-            "Clause Identification": "Unknown"
+            "Clause Identification": "Unknown",
+            "Clause Feedback & Fix": "No feedback or recommendation available."
         }
         for i, cl in enumerate(clauses)
     ]
@@ -45,14 +46,15 @@ You are a legal compliance analyst. Analyze the following contract clauses. For 
     "Regulation": "{regulation_list}",
     "Risk Level": "High/Medium/Low/Unknown",
     "Risk Score": "0-100%",
-    "Clause Identification": "short explanation (max 100 words)"
+    "Clause Identification": "short explanation (max 100 words)",
+    "Clause Feedback & Fix": "Combine feedback on clause clarity or risk with a specific recommendation to modify the clause and resolve the issue. Limit to 100 words."
   }}
 ]
 
 Instructions:
-- Keep 'AI Analysis' concise and informative, strictly under 100 words.
-- Use plain language to explain why the clause maps to a regulation and what risks it poses.
-- Do not include extra commentary or formatting outside the JSON.
+- 'Clause Identification' should explain why the clause maps to a regulation and what risks it poses.
+- 'Clause Feedback & Fix' must be actionable. If Risk Level is High or Medium, suggest how to rewrite, clarify, or add safeguards. Include brief feedback if the clause is vague, risky, or incomplete.
+- Use plain language. No extra formatting outside the JSON.
 
 Clauses:
 {json.dumps([{"Clause ID": i + start_id, "Contract Clause": cl} for i, cl in enumerate(clauses)])}
