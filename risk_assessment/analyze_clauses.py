@@ -1,10 +1,11 @@
-import os, json, re, time
-from dotenv import load_dotenv
+import json
+import re
+import time
 from groq import Groq
+from config import GROQ_API_KEY, ModelManager
 
-load_dotenv()
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 groq_client = Groq(api_key=GROQ_API_KEY)
+model_manager = ModelManager()
 
 def safe_json_parse(content, clauses, start_id):
     try:
@@ -16,6 +17,7 @@ def safe_json_parse(content, clauses, start_id):
                 return json.loads(match.group(0))
         except:
             pass
+    # fallback
     return [
         {
             "Clause ID": i + start_id,
@@ -29,7 +31,7 @@ def safe_json_parse(content, clauses, start_id):
         for i, cl in enumerate(clauses)
     ]
 
-def analyze_batch(clauses, start_id, retries=3, timeout=30):
+def analyze_batch(clauses, start_id=1, retries=3, timeout=30):
     regulation_list = (
         "GDPR, HIPAA, SOX, ITAR, SEC, FCPA, PCI-DSS, RBI, SEBI, IT Act, "
         "CCPA, GLBA, FERPA, COPPA, NIST, ISO 27001, SOC 2, FINRA, MiFID II, "
@@ -51,19 +53,15 @@ You are a legal compliance analyst. Analyze the following contract clauses. For 
   }}
 ]
 
-Instructions:
-- 'Clause Identification' should explain why the clause maps to a regulation and what risks it poses.
-- 'Clause Feedback & Fix' must be actionable. If Risk Level is High or Medium, suggest how to rewrite, clarify, or add safeguards. Include brief feedback if the clause is vague, risky, or incomplete.
-- Use plain language. No extra formatting outside the JSON.
-
 Clauses:
 {json.dumps([{"Clause ID": i + start_id, "Contract Clause": cl} for i, cl in enumerate(clauses)])}
 """
 
     for attempt in range(retries):
+        model = model_manager.get_next_model()
         try:
             response = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model=model,
                 messages=[
                     {"role": "system", "content": "You are a legal compliance analyst. Respond ONLY with valid JSON."},
                     {"role": "user", "content": prompt}
@@ -74,19 +72,21 @@ Clauses:
             )
             content = response.choices[0].message.content
             return safe_json_parse(content, clauses, start_id)
-
         except Exception as e:
-            if "Rate limit reached" in str(e):
-                wait_match = re.search(r"try again in (\d+)m(\d+\.\d+)s", str(e))
-                if wait_match:
-                    minutes = int(wait_match.group(1))
-                    seconds = float(wait_match.group(2))
-                    total_wait = int(minutes * 60 + seconds) + 5
-                    print(f"\nRate limit hit. Waiting {total_wait} seconds...\n")
-                    time.sleep(total_wait)
-                    continue
-            print(f"Attempt {attempt + 1} failed: {type(e).__name__} → {e}")
+            print(f"Attempt {attempt + 1} with model '{model}' failed: {type(e).__name__} → {e}")
             time.sleep(2)
-
     print("All retries failed. Using fallback.")
     return safe_json_parse("[]", clauses, start_id)
+
+# Batch wrapper with optional max_workers
+def analyze_all_batches(clauses, start_id=1, batch_size=6, max_workers=3):
+    """
+    Splits clauses into batches and analyzes each batch sequentially.
+    Currently max_workers is reserved for future threading/multiprocessing.
+    """
+    results = []
+    for i in range(0, len(clauses), batch_size):
+        batch = clauses[i:i + batch_size]
+        batch_results = analyze_batch(batch, start_id=start_id + i)
+        results.extend(batch_results)
+    return results
