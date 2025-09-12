@@ -141,7 +141,7 @@ st.markdown(
 
 # ---------------- Google Sheets Setup ----------------
 GOOGLE_AUTH_FILE = "services.json"
-GSHEET_ID = "1rPWScUeO8rCp8fjpy2d3To_Kg65qTweEV7KH5_zteB4"
+GSHEET_ID = "your_gsheet_id"
 SHEET_NAME = "Sheet1"
 
 creds = Credentials.from_service_account_file(
@@ -288,3 +288,4 @@ if uploaded_file:
 
 else:
     st.info("👆 Upload a contract PDF to begin.")
+
