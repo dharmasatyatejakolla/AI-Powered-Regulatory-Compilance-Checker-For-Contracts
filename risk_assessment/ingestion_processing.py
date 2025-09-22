@@ -1,15 +1,21 @@
+import os
 import time
+from dotenv import load_dotenv
 import gspread
 from tqdm import tqdm
 from google.oauth2.service_account import Credentials
 
+# Load environment variables
+load_dotenv()
+
 # Import the batch analysis function from analyze_clauses
 from risk_assessment.analyze_clauses import analyze_all_batches
+
 
 # Google Sheets setup
 google_auth_file = "services.json"
 google_sheet_scope = ["https://www.googleapis.com/auth/spreadsheets"]
-gsheet_id = "your_gsheet_id"
+gsheet_id = os.getenv("GSHEET_ID")
 sheet_name = "Sheet1"
 
 creds = Credentials.from_service_account_file(google_auth_file, scopes=google_sheet_scope)
@@ -41,7 +47,7 @@ def ingest_to_sheet(clauses, batch_size=6, max_workers=3):
     """
     rows = [
         ["Clause ID", "Contract Clause", "Regulation", "Risk Level", "Risk Score",
-         "Clause Identification", "Clause Feedback & Fix"]
+         "Clause Identification", "Clause Feedback & Fix", "AI-Modified Clause", "AI-Modified Risk Level"]
     ]
 
     # Process clauses in batches
@@ -60,7 +66,9 @@ def ingest_to_sheet(clauses, batch_size=6, max_workers=3):
                 res.get("Risk Level"),
                 res.get("Risk Score", "0%"),
                 res.get("Clause Identification"),
-                res.get("Clause Feedback & Fix", "No feedback or recommendation available.")
+                res.get("Clause Feedback & Fix", "No feedback or recommendation available."),
+                res.get("AI-Modified Clause", "No AI-modified clause available."),
+                res.get("AI-Modified Risk Level", "Unknown")
             ])
 
     # Clear existing content and update sheet
