@@ -2,14 +2,22 @@ import os
 import tempfile
 import base64
 import streamlit as st
+from dotenv import load_dotenv
 import pandas as pd
 from google.oauth2.service_account import Credentials
 import gspread
 import altair as alt
+from io import BytesIO
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 
 from risk_assessment.extract_pdf import extract_clauses
 from risk_assessment.analyze_clauses import analyze_all_batches
 from config import ModelManager
+
+# Load environment variables
+load_dotenv()
 
 # ------------------- Styling -------------------
 def add_custom_style():
@@ -85,19 +93,20 @@ def add_custom_style():
 # Background image
 def add_background_image():
     image_path = "images/bgimg.png"
-    with open(image_path, "rb") as f:
-        encoded = base64.b64encode(f.read()).decode()
-    st.markdown(f"""
-    <style>
-    .stApp {{
-        background-image: url("data:image/jpg;base64,{encoded}"), 
-                          linear-gradient(-45deg, #1e3c72, #2a5298);
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
-    }}
-    </style>
-    """, unsafe_allow_html=True)
+    if os.path.exists(image_path):
+        with open(image_path, "rb") as f:
+            encoded = base64.b64encode(f.read()).decode()
+        st.markdown(f"""
+        <style>
+        .stApp {{
+            background-image: url("data:image/jpg;base64,{encoded}"), 
+                              linear-gradient(-45deg, #1e3c72, #2a5298);
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }}
+        </style>
+        """, unsafe_allow_html=True)
 
 add_custom_style()
 add_background_image()
@@ -105,7 +114,7 @@ st.set_page_config(page_title="AI Compliance Checker", layout="wide", page_icon=
 
 # ------------------- Google Sheets -------------------
 GOOGLE_AUTH_FILE = "services.json"
-GSHEET_ID = "1NfuT_zRcjG93a6pFg7RrHv424N4yQympge5siowY_tw"
+GSHEET_ID = os.getenv("GSHEET_ID")
 SHEET_NAME = "Sheet1"
 creds = Credentials.from_service_account_file(GOOGLE_AUTH_FILE, scopes=["https://www.googleapis.com/auth/spreadsheets"])
 gs_client = gspread.authorize(creds)
@@ -159,7 +168,6 @@ def upload_page():
                 tmp_path = tmp.name
             st.info("📂 Extracting clauses...")
             st.session_state.clauses = extract_clauses(tmp_path)
-            st.info(f"🔍 Found {len(st.session_state.clauses)} clauses.")
 
         if st.session_state.results is None:
             with st.spinner("Analyzing clauses..."):
@@ -198,12 +206,44 @@ def upload_page():
         except Exception as e:
             st.error(f"⚠ Upload failed: {e}")
 
+# ------------------- PDF Export Helper -------------------
+def generate_rewritten_pdf(df):
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    styles = getSampleStyleSheet()
+    story = []
+
+    story.append(Paragraph("<b>AI-Rewritten Contract Clauses Report</b>", styles["Title"]))
+    story.append(Spacer(1, 20))
+
+    for _, row in df.iterrows():
+        clause_id = row["Clause ID"]
+        original = row["Contract Clause"]
+        risk_level = row.get("Risk Level", "Unknown")
+        modified = row.get("AI-Modified Clause", "⚠️ Not available")
+        modified_risk = row.get("AI-Modified Risk Level", "Unknown")
+
+        story.append(Paragraph(f"<b>Clause ID:</b> {clause_id}", styles["Heading2"]))
+        story.append(Spacer(1, 6))
+        story.append(Paragraph(f"<b>Original Risk Level:</b> {risk_level}", styles["Normal"]))
+        story.append(Paragraph(f"<b>Original Clause:</b> {original}", styles["Normal"]))
+        story.append(Spacer(1, 6))
+        story.append(Paragraph(f"<b>AI-Modified Clause:</b> {modified}", styles["Normal"]))
+        story.append(Paragraph(f"<b>AI-Modified Risk Level:</b> {modified_risk}", styles["Normal"]))
+        story.append(Spacer(1, 15))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
 # ------------------- Results Page -------------------
 def results_page():
     df = st.session_state.df
     if df is None or df.empty:
         st.error("No data available.")
         return
+
 
     # ---------------- Page Header ----------------
     st.markdown("""
@@ -296,7 +336,11 @@ def results_page():
     else:
         filtered_df = df
 
-    st.dataframe(filtered_df, use_container_width=True, height=500)
+    # Drop AI-modified columns for this view
+    analysis_df = filtered_df.drop(columns=["AI-Modified Clause", "AI-Modified Risk Level"], errors="ignore")
+
+    st.dataframe(analysis_df, use_container_width=True, height=500)
+
 
     csv = filtered_df.to_csv(index=False).encode("utf-8")
     st.download_button(
@@ -321,17 +365,19 @@ def results_page():
     if st.session_state.show_rewrites:
         sugg_df = df[df["Risk Level"] == "High"].copy()
 
-        if "AI-Rewritten Clause" not in sugg_df.columns:
-            sugg_df["AI-Rewritten Clause"] = "⚠️ No rewritten version available"
+        if "AI-Modified Clause" not in sugg_df.columns:
+            sugg_df["AI-Modified Clause"] = "⚠️ No rewritten version available"
         if "Clause Feedback & Fix" not in sugg_df.columns:
             sugg_df["Clause Feedback & Fix"] = "No feedback available"
+        if "AI-Modified Risk Level" not in sugg_df.columns:
+            sugg_df["AI-Modified Risk Level"] = "Unknown"
 
         keep_cols = [
             "Clause ID",
             "Contract Clause",
             "Risk Level",
-            "Clause Feedback & Fix",
-            "AI-Modified Clause"
+            "AI-Modified Clause",
+            "AI-Modified Risk Level"
         ]
         sugg_df = sugg_df[[c for c in keep_cols if c in sugg_df.columns]]
 
@@ -346,6 +392,15 @@ def results_page():
                 data=sugg_csv,
                 file_name="ai_rewritten_clauses.csv",
                 mime="text/csv"
+            )
+
+            # --- PDF Download Button ---
+            pdf_data = generate_rewritten_pdf(sugg_df)
+            st.download_button(
+                "📄 Download AI-Rewritten Clauses PDF",
+                data=pdf_data,
+                file_name="ai_rewritten_clauses.pdf",
+                mime="application/pdf"
             )
 
     # ---------------- Google Sheets Button ----------------
@@ -378,3 +433,4 @@ if st.session_state.page == "upload":
     upload_page()
 elif st.session_state.page == "results":
     results_page()
+
