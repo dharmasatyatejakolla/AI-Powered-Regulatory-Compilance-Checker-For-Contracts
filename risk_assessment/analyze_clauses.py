@@ -17,7 +17,7 @@ ALLOWED_FIELDS = {
     "Clause Identification",
     "Clause Feedback & Fix",
     "AI-Modified Clause",
-    "AI-Modified Risk Level"   # <-- added
+    "AI-Modified Risk Level"
 }
 
 # ---------------- Cleaner ----------------
@@ -31,7 +31,6 @@ def normalize_risk_score(score) -> str:
     if score is None:
         return "0%"
     s = str(score).strip()
-    # find first numeric portion (e.g. "65" or "65%" or "about 65 percent")
     match = re.search(r"\d{1,3}", s)
     if not match:
         return "0%"
@@ -263,3 +262,4 @@ def analyze_all_batches(clauses, start_id=1, batch_size=6, max_workers=3):
         batch_results = retry_failed_clauses(batch_results, retries=1)
         results.extend(batch_results)
     return results
+
