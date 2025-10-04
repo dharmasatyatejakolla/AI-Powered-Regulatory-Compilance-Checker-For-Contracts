@@ -1,7 +1,3 @@
-"""
-risk_assessment package
-Provides utilities for extracting, analyzing, ingesting, and notifying about contract compliance risks.
-"""
 from .extract_pdf import extract_clauses
 from .analyze_clauses import analyze_all_batches
 from .ingestion_processing import ingest_to_sheet
