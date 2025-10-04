@@ -11,7 +11,6 @@ load_dotenv()
 # Import the batch analysis function from analyze_clauses
 from risk_assessment.analyze_clauses import analyze_all_batches
 
-
 # Google Sheets setup
 google_auth_file = "services.json"
 google_sheet_scope = ["https://www.googleapis.com/auth/spreadsheets"]
@@ -74,3 +73,4 @@ def ingest_to_sheet(clauses, batch_size=6, max_workers=3):
     # Clear existing content and update sheet
     worksheet.clear()
     worksheet.update(values=rows, range_name="A1")
+
