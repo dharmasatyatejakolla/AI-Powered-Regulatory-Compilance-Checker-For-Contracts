@@ -17,7 +17,7 @@ ALLOWED_FIELDS = {
     "Clause Identification",
     "Clause Feedback & Fix",
     "AI-Modified Clause",
-    "AI-Modified Risk Level"
+    "AI-Modified Risk Level"   # <-- added
 }
 
 # ---------------- Cleaner ----------------
@@ -31,6 +31,7 @@ def normalize_risk_score(score) -> str:
     if score is None:
         return "0%"
     s = str(score).strip()
+    # find first numeric portion (e.g. "65" or "65%" or "about 65 percent")
     match = re.search(r"\d{1,3}", s)
     if not match:
         return "0%"
@@ -142,7 +143,7 @@ def normalize_result(parsed, clauses, start_id):
         normalized.append(base)
     return normalized
 
-# Safe JSON Parser
+# ---------------- Safe JSON Parser ----------------
 def safe_json_parse(content, clauses, start_id):
     try:
         parsed = json.loads(content)
@@ -262,4 +263,3 @@ def analyze_all_batches(clauses, start_id=1, batch_size=6, max_workers=3):
         batch_results = retry_failed_clauses(batch_results, retries=1)
         results.extend(batch_results)
     return results
-
